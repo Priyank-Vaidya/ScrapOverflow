@@ -3,6 +3,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const axios = require('axios');
 const cors = require('cors');
+const nodemailer = require('nodemailer');
+
 require('dotenv').config();
 
 const app = express();
@@ -21,7 +23,7 @@ const CacheSchema = new mongoose.Schema({
 const Cache = mongoose.model('Cache', CacheSchema);
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI);
+mongoose.connect('mongodb+srv://priyankhvaidya:Priyank@devops.z7t1ops.mongodb.net/');
 
 // Stack Overflow API endpoint
 async function searchStackOverflow(query) {
@@ -104,9 +106,46 @@ app.get('/api/search', async (req, res) => {
 // Email endpoint
 app.post('/api/email', async (req, res) => {
   const { email, results } = req.body;
-  // Add your email sending logic here using nodemailer or similar
-  res.json({ success: true });
+
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
+
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Search Results',
+      html: `
+        <h2>Stack Overflow Results</h2>
+        ${results.stackoverflow.map(item => 
+          `<div>
+            <a href="${item.link}">${item.title}</a>
+            <p>Score: ${item.score} | Answers: ${item.answer_count}</p>
+          </div>`
+        ).join('')}
+
+        <h2>Reddit Results</h2>
+        ${results.reddit.map(item => 
+          `<div>
+            <a href="https://reddit.com${item.data.permalink}">${item.data.title}</a>
+            <p>Score: ${item.data.score} | Comments: ${item.data.num_comments}</p>
+          </div>`
+        ).join('')}
+      `
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Email error:', error);
+    res.status(500).json({ success: false, error: 'Failed to send email' });
+  }
 });
+
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
